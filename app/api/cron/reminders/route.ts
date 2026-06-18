@@ -80,7 +80,7 @@ export async function GET(request: Request) {
         .join("\n");
 
       const { error: emailError } = await resend.emails.send({
-        from: "CareerTrack <reminders@careertrack.app>",
+        from: "CareerTrack <onboarding@resend.dev>",
         to: email,
         subject: `Follow-up reminders — ${fups.length} application${fups.length === 1 ? "" : "s"} due`,
         text: `You have follow-ups due for the following applications:\n\n${followUpList}\n\nLog in to CareerTrack to update them.`,
