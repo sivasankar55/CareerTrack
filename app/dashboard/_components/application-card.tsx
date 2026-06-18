@@ -29,32 +29,32 @@ type ApplicationCardProps = {
 export function ApplicationCard({ application, onDelete }: ApplicationCardProps) {
   return (
     <Card>
-      <CardHeader className="flex flex-row items-start justify-between pb-2">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <h3 className="font-semibold leading-none">
+      <CardHeader className="pb-2">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="font-semibold text-base sm:text-lg leading-tight">
               {application.role_title}
             </h3>
             <Badge
               variant="secondary"
-              className={STATUS_COLORS[application.status]}
+              className={`${STATUS_COLORS[application.status]} capitalize`}
             >
               {application.status}
             </Badge>
           </div>
-          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sm:text-sm text-muted-foreground">
             <span className="flex items-center gap-1">
-              <Building className="h-3.5 w-3.5" />
+              <Building className="h-3.5 w-3.5 text-muted-foreground/80" />
               {application.company_name}
             </span>
             {application.location && (
               <span className="flex items-center gap-1">
-                <MapPin className="h-3.5 w-3.5" />
+                <MapPin className="h-3.5 w-3.5 text-muted-foreground/80" />
                 {application.location}
               </span>
             )}
             <span className="flex items-center gap-1">
-              <Calendar className="h-3.5 w-3.5" />
+              <Calendar className="h-3.5 w-3.5 text-muted-foreground/80" />
               {new Date(application.applied_date).toLocaleDateString()}
             </span>
           </div>
@@ -65,18 +65,18 @@ export function ApplicationCard({ application, onDelete }: ApplicationCardProps)
           application.key_requirements.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {application.key_requirements.map((req) => (
-                <Badge key={req} variant="outline" className="text-xs">
+                <Badge key={req} variant="outline" className="text-[10px] sm:text-xs">
                   {req}
                 </Badge>
               ))}
             </div>
           )}
       </CardContent>
-      <CardFooter className="flex justify-between">
-        <div className="flex gap-2">
+      <CardFooter className="flex flex-col sm:flex-row gap-3 sm:justify-between items-stretch sm:items-center pt-2">
+        <div className="flex flex-wrap gap-2">
           <Link
             href={`/dashboard/applications/${application.id}/edit`}
-            className="inline-flex items-center justify-center gap-1 rounded-md border border-input bg-background px-2.5 py-1.5 text-xs font-medium shadow-sm hover:bg-accent hover:text-accent-foreground"
+            className="inline-flex flex-1 sm:flex-none items-center justify-center gap-1 rounded-md border border-input bg-background px-2.5 py-1.5 text-xs font-medium shadow-sm hover:bg-accent hover:text-accent-foreground"
           >
             <Pencil className="h-3.5 w-3.5" />
             Edit
@@ -86,24 +86,25 @@ export function ApplicationCard({ application, onDelete }: ApplicationCardProps)
               href={application.job_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-1 rounded-md border border-input bg-background px-2.5 py-1.5 text-xs font-medium shadow-sm hover:bg-accent hover:text-accent-foreground"
+              className="inline-flex flex-1 sm:flex-none items-center justify-center gap-1 rounded-md border border-input bg-background px-2.5 py-1.5 text-xs font-medium shadow-sm hover:bg-accent hover:text-accent-foreground"
             >
               <ExternalLink className="h-3.5 w-3.5" />
-              Open job link
+              Link
             </a>
           )}
           <Button
             variant="outline"
             size="sm"
             onClick={() => onDelete(application.id)}
+            className="flex-1 sm:flex-none"
           >
-            <Trash2 className="mr-1 h-3.5 w-3.5" />
+            <Trash2 className="mr-1 h-3.5 w-3.5 text-destructive" />
             Delete
           </Button>
         </div>
         <Link
           href={`/dashboard/applications/${application.id}`}
-          className="inline-flex items-center justify-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium hover:bg-accent hover:text-accent-foreground"
+          className="inline-flex items-center justify-center gap-1 rounded-md border sm:border-0 border-input bg-muted/20 sm:bg-transparent px-2.5 py-1.5 text-xs font-medium hover:bg-accent hover:text-accent-foreground text-center"
         >
           View details
         </Link>

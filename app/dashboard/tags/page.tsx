@@ -175,15 +175,25 @@ export default function TagsPage() {
               key={tag.id}
               className="flex items-center justify-between rounded-md border px-4 py-3"
             >
-              {editingId === tag.id ? (
-                <div className="flex flex-1 items-center gap-3">
-                  <Input
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    className="h-8 w-40"
-                    onKeyDown={(e) => e.key === "Enter" && handleUpdate(tag.id)}
-                  />
-                  <div className="flex flex-wrap gap-1">
+               {editingId === tag.id ? (
+                <div className="flex flex-col sm:flex-row flex-1 items-stretch sm:items-center gap-3 w-full">
+                  <div className="flex gap-2 items-center flex-1">
+                    <Input
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      className="h-8 flex-1 sm:w-40 sm:flex-initial"
+                      onKeyDown={(e) => e.key === "Enter" && handleUpdate(tag.id)}
+                    />
+                    <div className="flex gap-1 sm:hidden">
+                      <Button size="icon" variant="ghost" className="h-8 w-8 bg-muted/20" onClick={() => handleUpdate(tag.id)}>
+                        <Check className="h-4 w-4" />
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-8 w-8 bg-muted/20" onClick={() => setEditingId(null)}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-1 items-center">
                     {PRESET_COLORS.map((c) => (
                       <button
                         key={c}
@@ -196,7 +206,7 @@ export default function TagsPage() {
                       />
                     ))}
                   </div>
-                  <div className="flex gap-1">
+                  <div className="hidden sm:flex gap-1">
                     <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleUpdate(tag.id)}>
                       <Check className="h-4 w-4" />
                     </Button>

@@ -206,30 +206,38 @@ export default function DashboardPage() {
       </div>
 
       {stats && (
-        <div className="flex flex-wrap gap-4 text-sm">
-          <span className="text-muted-foreground">
-            Total: <strong>{stats.total}</strong>
-          </span>
-          <span className="text-green-600">
-            Offers: <strong>{stats.offers}</strong>
-          </span>
-          <span className="text-purple-600">
-            Interviews: <strong>{stats.interviews}</strong>
-          </span>
-          <span className="text-red-600">
-            Rejected: <strong>{stats.rejected}</strong>
-          </span>
-          <span className="text-gray-500">
-            Ghosted: <strong>{stats.ghosted}</strong>
-          </span>
-          <span className="text-muted-foreground">
-            Response rate: <strong>{stats.responseRate}%</strong>
-          </span>
-          {avgDaysToResponse !== null && (
-            <span className="text-muted-foreground">
-              Avg response: <strong>{avgDaysToResponse} days</strong>
-            </span>
-          )}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+          <div className="rounded-xl border bg-card p-3 shadow-sm transition-all hover:shadow-md">
+            <p className="text-xs font-medium text-muted-foreground">Total</p>
+            <p className="mt-1 text-lg sm:text-2xl font-bold tracking-tight">{stats.total}</p>
+          </div>
+          <div className="rounded-xl border border-green-500/20 bg-green-500/5 dark:bg-green-500/10 p-3 shadow-sm transition-all hover:shadow-md">
+            <p className="text-xs font-medium text-green-600 dark:text-green-400">Offers</p>
+            <p className="mt-1 text-lg sm:text-2xl font-bold tracking-tight text-green-600 dark:text-green-400">{stats.offers}</p>
+          </div>
+          <div className="rounded-xl border border-purple-500/20 bg-purple-500/5 dark:bg-purple-500/10 p-3 shadow-sm transition-all hover:shadow-md">
+            <p className="text-xs font-medium text-purple-600 dark:text-purple-400">Interviews</p>
+            <p className="mt-1 text-lg sm:text-2xl font-bold tracking-tight text-purple-600 dark:text-purple-400">{stats.interviews}</p>
+          </div>
+          <div className="rounded-xl border border-red-500/20 bg-red-500/5 dark:bg-red-500/10 p-3 shadow-sm transition-all hover:shadow-md">
+            <p className="text-xs font-medium text-red-600 dark:text-red-400">Rejected</p>
+            <p className="mt-1 text-lg sm:text-2xl font-bold tracking-tight text-red-600 dark:text-red-400">{stats.rejected}</p>
+          </div>
+          <div className="rounded-xl border bg-card p-3 shadow-sm transition-all hover:shadow-md">
+            <p className="text-xs font-medium text-muted-foreground">Ghosted</p>
+            <p className="mt-1 text-lg sm:text-2xl font-bold tracking-tight text-foreground/80">{stats.ghosted}</p>
+          </div>
+          <div className="rounded-xl border bg-card p-3 shadow-sm transition-all hover:shadow-md">
+            <p className="text-xs font-medium text-muted-foreground">Response Rate</p>
+            <p className="mt-1 text-lg sm:text-2xl font-bold tracking-tight text-blue-600 dark:text-blue-400">
+              {stats.responseRate}%
+            </p>
+            {avgDaysToResponse !== null && (
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                Avg: {avgDaysToResponse} days
+              </p>
+            )}
+          </div>
         </div>
       )}
 
@@ -332,13 +340,15 @@ export default function DashboardPage() {
           <p className="text-sm text-muted-foreground">
             Showing {filtered.length} of {applications.length} applications
           </p>
-          {filtered.map((app) => (
-            <ApplicationCard
-              key={app.id}
-              application={app}
-              onDelete={handleDelete}
-            />
-          ))}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {filtered.map((app) => (
+              <ApplicationCard
+                key={app.id}
+                application={app}
+                onDelete={handleDelete}
+              />
+            ))}
+          </div>
         </div>
       )}
     </div>
