@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Application } from "@/types/application";
+import type { Application, Tag } from "@/types/application";
 import type { ApplicationStatus } from "@/types/status";
 
 export function useApplications() {
@@ -63,9 +63,12 @@ export function useFilteredApplications(
   applications: Application[],
   statusFilter: ApplicationStatus | null,
   searchQuery: string,
+  tagFilterIds: string[] = [],
+  appTagMap: Map<string, string[]> = new Map(),
 ) {
   return applications.filter((app) => {
     const matchesStatus = !statusFilter || app.status === statusFilter;
+
     const query = searchQuery.toLowerCase().trim();
     const matchesSearch =
       !query ||
@@ -74,6 +77,33 @@ export function useFilteredApplications(
       (app.key_requirements &&
         app.key_requirements.some((r) => r.toLowerCase().includes(query)));
 
-    return matchesStatus && matchesSearch;
+    const matchesTags =
+      tagFilterIds.length === 0 ||
+      (appTagMap.has(app.id) &&
+        tagFilterIds.every((tid) => appTagMap.get(app.id)!.includes(tid)));
+
+    return matchesStatus && matchesSearch && matchesTags;
   });
+}
+
+export function useTags() {
+  const [tags, setTags] = useState<Tag[]>([]);
+  const supabase = createClient();
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const { data } = await supabase
+          .from("tags")
+          .select("*")
+          .order("name", { ascending: true });
+        setTags(data ?? []);
+      } catch {
+        // tags table may not exist yet
+      }
+    }
+    load();
+  }, [supabase]);
+
+  return { tags };
 }

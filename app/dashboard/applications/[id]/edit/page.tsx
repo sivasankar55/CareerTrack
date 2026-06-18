@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { ApplicationForm } from "../../../_components/application-form";
 import type { ApplicationFormData } from "../../../_components/application-form";
 import type { Application } from "@/types/application";
-import { Loader2 } from "lucide-react";
+import { Loader2, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 
 type Props = {
@@ -37,27 +38,52 @@ export default function EditApplicationPage({ params }: Props) {
   async function handleSubmit(data: ApplicationFormData) {
     if (!application) return;
 
+    const payload: Record<string, unknown> = {
+      company_name: data.company_name,
+      role_title: data.role_title,
+      job_description_raw: data.job_description_raw || null,
+      job_url: data.job_url || null,
+      location: data.location || null,
+      key_requirements: data.key_requirements
+        ? data.key_requirements.split(",").map((r) => r.trim()).filter(Boolean)
+        : null,
+      source: data.source || null,
+      status: data.status || "applied",
+      applied_date: data.applied_date,
+      notes: data.notes || null,
+    };
+
+    if (data.salary_min) payload.salary_min = parseInt(data.salary_min, 10);
+    if (data.salary_max) payload.salary_max = parseInt(data.salary_max, 10);
+    if (data.equity) payload.equity = data.equity;
+    if (data.benefits) payload.benefits = data.benefits;
+    if (data.cover_letter_version_id) payload.cover_letter_version_id = data.cover_letter_version_id;
+
     const { error } = await supabase
       .from("applications")
-      .update({
-        company_name: data.company_name,
-        role_title: data.role_title,
-        job_description_raw: data.job_description_raw || null,
-        job_url: data.job_url || null,
-        location: data.location || null,
-        key_requirements: data.key_requirements
-          ? data.key_requirements.split(",").map((r) => r.trim()).filter(Boolean)
-          : null,
-        source: data.source || null,
-        status: data.status || "applied",
-        applied_date: data.applied_date,
-        notes: data.notes || null,
-      })
+      .update(payload)
       .eq("id", application.id);
 
     if (error) {
-      toast.error("Couldn't save changes. Try again.");
+      toast.error(error.message.includes("schema cache")
+        ? "Couldn't save changes — run the database migration first (see supabase/migration-v2.sql)."
+        : "Couldn't save changes. Try again.");
       return;
+    }
+
+    if (data.tag_ids) {
+      await supabase.from("application_tags").delete().eq("application_id", application.id);
+      if (data.tag_ids.length > 0) {
+        const { error: tagErr } = await supabase.from("application_tags").insert(
+          data.tag_ids.map((tag_id) => ({
+            application_id: application.id,
+            tag_id,
+          })),
+        );
+        if (tagErr) {
+          console.error("Tags not saved (table may not exist yet):", tagErr);
+        }
+      }
     }
 
     toast.success("Changes saved.");
@@ -82,7 +108,14 @@ export default function EditApplicationPage({ params }: Props) {
   }
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="mx-auto max-w-2xl space-y-6">
+      <Link
+        href={`/dashboard/applications/${application.id}`}
+        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Back to application
+      </Link>
       <ApplicationForm
         defaultValues={application}
         onSubmit={handleSubmit}

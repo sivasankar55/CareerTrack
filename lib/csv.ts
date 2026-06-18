@@ -10,6 +10,11 @@ export function exportApplicationsToCsv(applications: Application[]): void {
     "Source",
     "Job URL",
     "Key Requirements",
+    "Salary Min",
+    "Salary Max",
+    "Equity",
+    "Benefits",
+    "Tags",
     "Notes",
   ];
 
@@ -24,6 +29,11 @@ export function exportApplicationsToCsv(applications: Application[]): void {
     escapeCsvField(
       app.key_requirements ? app.key_requirements.join("; ") : "",
     ),
+    app.salary_min?.toString() ?? "",
+    app.salary_max?.toString() ?? "",
+    escapeCsvField(app.equity ?? ""),
+    escapeCsvField(app.benefits ?? ""),
+    escapeCsvField((app as Record<string, unknown>).tags_csv as string ?? ""),
     escapeCsvField(app.notes ?? ""),
   ]);
 

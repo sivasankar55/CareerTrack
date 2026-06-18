@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/card";
 import { APPLICATION_STATUSES } from "@/types/status";
 import { SOURCE_OPTIONS } from "@/types/status";
-import type { Application, ResumeVersion } from "@/types/application";
+import type { Application, ResumeVersion, Tag, CoverLetterVersion } from "@/types/application";
 import type { ApplicationStatus, ApplicationSource } from "@/types/status";
 import { Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
@@ -40,6 +40,12 @@ export type ApplicationFormData = {
   applied_date: string;
   notes: string;
   resume_version_id: string;
+  cover_letter_version_id: string;
+  salary_min: string;
+  salary_max: string;
+  equity: string;
+  benefits: string;
+  tag_ids: string[];
 };
 
 type Props = {
@@ -53,23 +59,65 @@ export function ApplicationForm({ defaultValues, onSubmit, submitLabel }: Props)
   const [isExtracting, setIsExtracting] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [resumeVersions, setResumeVersions] = useState<ResumeVersion[]>([]);
+  const [coverLetterVersions, setCoverLetterVersions] = useState<CoverLetterVersion[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [isGeneratingCoverLetter, setIsGeneratingCoverLetter] = useState(false);
   const supabase = createClient();
 
   useEffect(() => {
-    async function loadResumes() {
+    async function loadData() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) return;
-      const { data } = await supabase
+
+      const { data: rvData } = await supabase
         .from("resume_versions")
         .select("*")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
-      setResumeVersions(data ?? []);
+      setResumeVersions(rvData ?? []);
+
+      try {
+        const { data: clData } = await supabase
+          .from("cover_letter_versions")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false });
+        setCoverLetterVersions(clData ?? []);
+      } catch {
+        setCoverLetterVersions([]);
+      }
+
+      try {
+        const { data: tagData } = await supabase
+          .from("tags")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("name", { ascending: true });
+        setTags(tagData ?? []);
+      } catch {
+        setTags([]);
+      }
+
+      if (defaultValues) {
+        try {
+          const { data: appTagData } = await supabase
+            .from("application_tags")
+            .select("tag_id")
+            .eq("application_id", defaultValues.id);
+          if (appTagData) {
+            const existingTagIds = appTagData.map((at: { tag_id: string }) => at.tag_id);
+            setFormData((prev) => ({ ...prev, tag_ids: existingTagIds }));
+          }
+        } catch {
+          // application_tags table may not exist yet
+        }
+      }
     }
-    loadResumes();
-  }, [supabase]);
+    loadData();
+  }, [supabase, defaultValues]);
+
   const [formData, setFormData] = useState<ApplicationFormData>({
     company_name: defaultValues?.company_name ?? "",
     role_title: defaultValues?.role_title ?? "",
@@ -82,6 +130,12 @@ export function ApplicationForm({ defaultValues, onSubmit, submitLabel }: Props)
     applied_date: defaultValues?.applied_date ?? new Date().toISOString().split("T")[0],
     notes: defaultValues?.notes ?? "",
     resume_version_id: defaultValues?.resume_version_id ?? "",
+    cover_letter_version_id: defaultValues?.cover_letter_version_id ?? "",
+    salary_min: defaultValues?.salary_min?.toString() ?? "",
+    salary_max: defaultValues?.salary_max?.toString() ?? "",
+    equity: defaultValues?.equity ?? "",
+    benefits: defaultValues?.benefits ?? "",
+    tag_ids: [],
   });
 
   function updateField<K extends keyof ApplicationFormData>(
@@ -89,6 +143,15 @@ export function ApplicationForm({ defaultValues, onSubmit, submitLabel }: Props)
     value: ApplicationFormData[K],
   ) {
     setFormData((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function toggleTag(tagId: string) {
+    setFormData((prev) => ({
+      ...prev,
+      tag_ids: prev.tag_ids.includes(tagId)
+        ? prev.tag_ids.filter((id) => id !== tagId)
+        : [...prev.tag_ids, tagId],
+    }));
   }
 
   async function handleExtract() {
@@ -126,6 +189,75 @@ export function ApplicationForm({ defaultValues, onSubmit, submitLabel }: Props)
       toast.error("Couldn't reach the extraction service. Fill in fields manually.");
     } finally {
       setIsExtracting(false);
+    }
+  }
+
+  async function handleGenerateCoverLetter() {
+    if (!formData.company_name.trim() || !formData.role_title.trim()) {
+      toast.error("Fill in company name and role title first.");
+      return;
+    }
+
+    setIsGeneratingCoverLetter(true);
+    try {
+      const res = await fetch("/api/generate-cover-letter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          company_name: formData.company_name,
+          role_title: formData.role_title,
+          job_description_raw: formData.job_description_raw,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        toast.error(err.error ?? "Couldn't generate cover letter.");
+        return;
+      }
+
+      const data = await res.json();
+      const label = `CL-${formData.company_name}-${formData.role_title}`.replace(/\s+/g, "-").toLowerCase();
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error("You must be signed in.");
+        return;
+      }
+
+      const { data: clData, error: clError } = await supabase
+        .from("cover_letter_versions")
+        .insert({
+          user_id: user.id,
+          label,
+          content: data.cover_letter,
+        })
+        .select()
+        .single();
+
+      if (clError) {
+        toast.error("Couldn't save generated cover letter.");
+        return;
+      }
+
+      const { data: refreshed } = await supabase
+        .from("cover_letter_versions")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+      setCoverLetterVersions(refreshed ?? []);
+
+      if (clData) {
+        updateField("cover_letter_version_id", clData.id);
+      }
+
+      toast.success("Cover letter generated and attached.");
+    } catch {
+      toast.error("Couldn't generate cover letter.");
+    } finally {
+      setIsGeneratingCoverLetter(false);
     }
   }
 
@@ -280,23 +412,148 @@ export function ApplicationForm({ defaultValues, onSubmit, submitLabel }: Props)
             </div>
           </div>
 
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="salary_min">Salary min</Label>
+              <Input
+                id="salary_min"
+                type="number"
+                placeholder="e.g. 100000"
+                value={formData.salary_min}
+                onChange={(e) => updateField("salary_min", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="salary_max">Salary max</Label>
+              <Input
+                id="salary_max"
+                type="number"
+                placeholder="e.g. 150000"
+                value={formData.salary_max}
+                onChange={(e) => updateField("salary_max", e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="equity">Equity</Label>
+              <Input
+                id="equity"
+                placeholder="e.g. 0.1%, $50k over 4 years"
+                value={formData.equity}
+                onChange={(e) => updateField("equity", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="benefits">Benefits</Label>
+              <Input
+                id="benefits"
+                placeholder="Health insurance, 401k, etc."
+                value={formData.benefits}
+                onChange={(e) => updateField("benefits", e.target.value)}
+              />
+            </div>
+          </div>
+
           <div className="space-y-2">
-            <Label htmlFor="resume_version">Resume version</Label>
-            <Select
-              value={formData.resume_version_id}
-              onValueChange={(v) => updateField("resume_version_id", v ?? "")}
-            >
-              <SelectTrigger id="resume_version">
-                <SelectValue placeholder="None selected" />
-              </SelectTrigger>
-              <SelectContent>
-                {resumeVersions.map((rv) => (
-                  <SelectItem key={rv.id} value={rv.id}>
-                    {rv.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label>Tags</Label>
+            {tags.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                No tags yet. Create some in the{" "}
+                <a href="/dashboard/tags" className="underline underline-offset-2">
+                  Tags page
+                </a>
+                .
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {tags.map((tag) => {
+                  const isSelected = formData.tag_ids.includes(tag.id);
+                  return (
+                    <button
+                      key={tag.id}
+                      type="button"
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                        isSelected
+                          ? "text-white"
+                          : "text-muted-foreground border border-input bg-background hover:bg-accent"
+                      }`}
+                      style={isSelected ? { backgroundColor: tag.color } : undefined}
+                      onClick={() => toggleTag(tag.id)}
+                    >
+                      <span
+                        className="inline-block h-2 w-2 rounded-full"
+                        style={{ backgroundColor: tag.color }}
+                      />
+                      {tag.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-end justify-between gap-2">
+              <div className="flex-1 space-y-2">
+                <Label htmlFor="resume_version">Resume version</Label>
+                <Select
+                  key={resumeVersions.length}
+                  value={formData.resume_version_id}
+                  onValueChange={(v) => updateField("resume_version_id", v ?? "")}
+                >
+                  <SelectTrigger id="resume_version">
+                    <SelectValue placeholder="None selected" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {resumeVersions.map((rv) => (
+                      <SelectItem key={rv.id} value={rv.id}>
+                        {rv.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-end justify-between gap-2">
+              <div className="flex-1 space-y-2">
+                <Label htmlFor="cover_letter_version">Cover letter version</Label>
+                <Select
+                  key={coverLetterVersions.length}
+                  value={formData.cover_letter_version_id}
+                  onValueChange={(v) => updateField("cover_letter_version_id", v ?? "")}
+                >
+                  <SelectTrigger id="cover_letter_version">
+                    <SelectValue placeholder="None selected" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {coverLetterVersions.map((cl) => (
+                      <SelectItem key={cl.id} value={cl.id}>
+                        {cl.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={handleGenerateCoverLetter}
+                disabled={isGeneratingCoverLetter}
+              >
+                {isGeneratingCoverLetter ? (
+                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="mr-1 h-4 w-4" />
+                )}
+                Generate draft
+              </Button>
+            </div>
           </div>
 
           <div className="space-y-2">
