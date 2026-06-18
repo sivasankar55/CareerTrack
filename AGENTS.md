@@ -9,11 +9,11 @@ listed here without updating this file first.
 code for something not already described in this file, update this file first —
 add it to section 2's scope list, add any new tables/columns to section 5, follow
 the naming/folder/UI/copy conventions in section 4, and log the decision in section
-11. A feature that isn't in this file yet doesn't get built yet. If a coding tool
-proposes a new feature mid-session (a new status value, a new table, a new page),
-treat that as a prompt to pause and edit this file before continuing, not something
-to implement first and document later — documenting after the fact is how this file
-goes stale and stops being trustworthy.
+17 (formerly section 11). A feature that isn't in this file yet doesn't get built
+yet. If a coding tool proposes a new feature mid-session (a new status value, a new
+table, a new page), treat that as a prompt to pause and edit this file before
+continuing, not something to implement first and document later — documenting after
+the fact is how this file goes stale and stops being trustworthy.
 
 ## 1. Problem
 
@@ -22,7 +22,9 @@ career pages, then lose track of what they applied to, when they followed up, an
 which resume version they sent. Generic spreadsheets get abandoned. Paid SaaS trackers
 are overkill for one person.
 
-## 2. Scope for v1
+## 2. Scope
+
+### v1 (initial build)
 
 - Manual entry of applications (paste job description as raw text, fill in company/role/status by hand)
 - LLM-assisted extraction: paste a job description, get company name, role title, location, and key requirements auto-filled (user can edit before saving)
@@ -37,6 +39,19 @@ are overkill for one person.
 Out of scope for v1: scraping job URLs directly, browser extension, mobile app,
 multi-user/team accounts, Kanban drag-and-drop UI (a filterable list/table is enough).
 
+### v2 (post-v1 additions)
+
+- **Interview prep / question tracker**: per-application interview round tracking (round label, scheduled date, questions asked, post-interview notes, prep notes, rating)
+- **Offer comparison**: side-by-side comparison page for applications with "offer" status, showing salary, equity, benefits, and other details in a table
+- **Tags / labels**: custom labels beyond status (e.g. "remote", "startup", "FAANG", "backend") with color coding, filterable on the dashboard
+- **Dashboard charts**: visual funnel breakdown and timeline chart of applications over time
+- **Follow-up email templates**: pre-written email templates the user can select from when creating a follow-up, with template variables for personalization
+- **Salary / compensation tracking**: new columns on applications for salary range, equity, and benefits
+- **Cover letter tracking**: LLM-assisted cover letter generation and version storage (same pattern as resume versions), tagged per application
+
+Out of scope for v2: multi-user/team accounts, browser extension, mobile app,
+Kanban drag-and-drop, automatic job scraping from URLs.
+
 ## 3. Tech stack
 
 | Layer | Choice | Why |
@@ -49,6 +64,7 @@ multi-user/team accounts, Kanban drag-and-drop UI (a filterable list/table is en
 | Email reminders | Resend | 3,000 emails/month free |
 | Cron | Vercel Cron | free, triggers daily reminder check |
 | Hosting | Vercel | free tier for Next.js |
+| Charts | Recharts | lightweight, React-native chart library, fits the stack |
 
 No other services. If a coding tool suggests adding a new dependency (e.g. a separate
 queue, a separate auth provider, Prisma vs raw SQL), check it against this table first
@@ -130,85 +146,59 @@ careertrack/
 │   │   ├── _components/         # underscore = excluded from routing
 │   │   │   ├── application-card.tsx
 │   │   │   ├── status-filter.tsx
-│   │   │   └── search-bar.tsx
-│   │   └── applications/
-│   │       ├── new/page.tsx     # create form
-│   │       └── [id]/
-│   │           ├── page.tsx     # detail view
-│   │           └── edit/page.tsx
+│   │   │   ├── search-bar.tsx
+│   │   │   ├── application-form.tsx
+│   │   │   ├── follow-up-form.tsx
+│   │   │   └── resume-upload-form.tsx
+│   │   ├── applications/
+│   │   │   ├── new/page.tsx
+│   │   │   └── [id]/
+│   │   │       ├── page.tsx     # detail view (includes interview rounds, tags, cover letter)
+│   │   │       └── edit/page.tsx
+│   │   ├── offers/
+│   │   │   └── page.tsx         # v2: offer comparison page (section 10)
+│   │   └── resumes/
+│   │       └── page.tsx
 │   ├── api/
-│   │   ├── extract/route.ts     # Groq extraction endpoint (section 8)
+│   │   ├── extract/route.ts
+│   │   ├── generate-cover-letter/route.ts  # v2: LLM cover letter generation
 │   │   └── cron/
 │   │       └── reminders/route.ts
-│   ├── layout.tsx                # root layout
+│   ├── layout.tsx
 │   └── proxy.ts                  # Next.js 16 — replaces middleware.ts, auth guard
-├── components/                   # shared across multiple routes
-│   ├── ui/                       # primitives: button, input, dialog, badge
+├── components/
+│   ├── ui/                       # shadcn/ui primitives
 │   └── shared/                   # navbar, footer, layout chrome
 ├── lib/
-│   ├── supabase/                 # client setup, queries
-│   ├── groq.ts                   # extraction call + JSON parsing (section 8)
-│   └── utils.ts                  # small helpers only — split if this grows past ~200 lines
-├── hooks/                        # shared custom hooks, e.g. use-applications.ts
-├── types/                        # shared TS types, e.g. application.ts, status.ts
-└── public/                       # static assets only
+│   ├── supabase/
+│   ├── groq.ts
+│   ├── csv.ts
+│   ├── follow-up-templates.ts    # v2: email template constants (section 13)
+│   └── utils.ts
+├── hooks/
+│   └── use-applications.ts
+├── types/
+│   ├── application.ts
+│   ├── status.ts
+│   └── interview.ts              # v2: interview round types
+└── public/
 ```
-
-A few rules worth following deliberately rather than by accident:
-
-- **Colocate first, globalize on second use.** A component only used inside the
-  dashboard list view lives in `app/dashboard/_components/`. The moment something is
-  needed by a second route, move it to `components/`.
-- **Underscore-prefixed folders** (`_components`, `_lib`) inside `app/` are excluded
-  from routing — use these for route-specific helpers so Next.js doesn't try to treat
-  them as pages.
-- **Route groups** (parentheses, e.g. `(auth)`) organize routes without adding a URL
-  segment — `(auth)/login/page.tsx` is still just `/login`, not `/auth/login`.
-- **Extract business logic out of Server Actions into `lib/`** rather than writing it
-  inline inside the action. Server Actions are tied to Next.js internals (cookies,
-  headers, revalidation) which makes them awkward to unit test directly; a plain
-  function in `lib/` can be tested in isolation and reused from the cron route too.
-- Don't nest more than 3-4 levels deep inside `app/` for route-specific component
-  folders — if it's getting that deep, the component probably belongs in the shared
-  `components/` folder instead.
 
 ### UI
 
-This doesn't need a custom design system — that's overkill for a personal tool — but
-pick a small, consistent set of primitives up front rather than improvising styles
-page by page, which is what makes hand-built tools look unfinished even when the
-features work.
-
-- Use **shadcn/ui** components (button, card, dialog, badge, input, select) as the
-  primitive layer — they're unstyled-enough to customize but consistent out of the
-  box, and match what's already listed as available in `components/ui/`.
-- Pick one spacing scale (Tailwind's default 4px-based scale is fine: `p-2`, `p-4`,
-  `p-6`, `gap-4`) and stick to it — don't mix `p-3` and `p-5` and `p-[18px]` across
-  different cards.
-- One accent color for primary actions (e.g. "Save," "Add Follow-up"), a neutral gray
-  scale for everything else, and status-specific colors only on the status
-  badge/filter itself (e.g. green for `offer`, red for `rejected`, gray for `ghosted`,
-  blue for `interview`) — don't let every button compete for attention.
-- Empty states matter more here than in a typical app — a job tracker with zero
-  applications should say something encouraging and point at the "Add application"
-  button, not just show a bare empty table.
+- Use **shadcn/ui** components as the primitive layer.
+- Pick one spacing scale (Tailwind's default 4px-based scale: `p-2`, `p-4`,
+  `p-6`, `gap-4`) and stick to it.
+- One accent color for primary actions, neutral gray scale for everything else,
+  and status-specific colors only on the status badge/filter itself.
+- Empty states: one sentence + a clear action.
 
 ### Copy (button labels, errors, empty states)
 
-Small, but this is the cheapest way to make a side project look like a real product
-rather than a tutorial, and it's the part most personal projects skip entirely.
-
-- Buttons: verb + object, no punctuation — "Add application," "Save changes," "Delete
-  application," not "Submit" or "OK" (too generic) or "Add application!" (no
-  exclamation marks on functional UI).
-- Confirmations for destructive actions are specific, not generic: "Delete this
-  application to Razorpay?" not "Are you sure?" — the user shouldn't have to recall
-  what they clicked to know what they're confirming.
-- Error messages say what happened and what to do, not the raw error: "Couldn't parse
-  that job description — try pasting just the text, not the whole page" rather than
-  exposing a raw Groq API error to the user.
-- Empty states: one sentence + a clear action. "No applications yet — paste a job
-  description to get started" plus the add-application button, not just blank space.
+- Buttons: verb + object, no punctuation — "Add application," "Save changes," "Delete application."
+- Confirmations for destructive actions are specific: "Delete this application to Razorpay?"
+- Error messages say what happened and what to do, not the raw error.
+- Empty states: one sentence + a clear action.
 
 ## 5. Data model
 
@@ -225,14 +215,19 @@ it means any authenticated user can read any other user's data.
 | `company_name` | text | required |
 | `role_title` | text | required |
 | `job_description_raw` | text | the pasted JD, kept for reference |
-| `job_url` | text | nullable — link to the original posting (LinkedIn/Naukri/Indeed/company site). Render as a clickable link in the UI; don't assume it stays valid, postings get taken down |
+| `job_url` | text | nullable — link to the original posting |
 | `location` | text | nullable |
-| `key_requirements` | jsonb | array of strings, e.g. `["React", "3+ yrs", "GraphQL"]` |
+| `key_requirements` | jsonb | array of strings |
 | `source` | text | one of: `LinkedIn`, `Naukri`, `Indeed`, `Company site`, `Referral`, `Other` |
-| `status` | text | one of: `applied`, `interview`, `offer`, `rejected`, `ghosted`, `withdrawn` — see status rules below |
+| `status` | text | one of: `applied`, `interview`, `offer`, `rejected`, `ghosted`, `withdrawn` |
 | `applied_date` | date | required |
 | `last_status_change` | timestamptz | updated whenever `status` changes |
-| `resume_version_id` | uuid, fk → `resume_versions` | nullable, `ON DELETE SET NULL` — deleting an application must not delete the resume version it used |
+| `resume_version_id` | uuid, fk → `resume_versions` | nullable, `ON DELETE SET NULL` |
+| `cover_letter_version_id` | uuid, fk → `cover_letter_versions` | nullable, `ON DELETE SET NULL` (v2) |
+| `salary_min` | integer | nullable, in whole currency units (v2) |
+| `salary_max` | integer | nullable, in whole currency units (v2) |
+| `equity` | text | nullable, free-text e.g. "0.1%", "$50k over 4 years" (v2) |
+| `benefits` | text | nullable, free-text (v2) |
 | `notes` | text | nullable, freeform |
 | `created_at` | timestamptz | default `now()` |
 | `updated_at` | timestamptz | default `now()`, update on every write |
@@ -248,10 +243,19 @@ it means any authenticated user can read any other user's data.
 | `file_size_kb` | int | for display only |
 | `created_at` | timestamptz | default `now()` |
 
-### `follow_ups`
+### `cover_letter_versions` (v2)
 
-One application can have multiple follow-ups over time (don't collapse this into a
-single column on `applications`).
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid, pk | default `gen_random_uuid()` |
+| `user_id` | uuid, fk → `auth.users` | required |
+| `label` | text | e.g. "v1-general", "stripe-application" |
+| `content` | text | the actual cover letter text |
+| `file_url` | text | nullable — optional PDF upload path |
+| `file_size_kb` | int | nullable |
+| `created_at` | timestamptz | default `now()` |
+
+### `follow_ups`
 
 | Column | Type | Notes |
 |---|---|---|
@@ -265,8 +269,7 @@ single column on `applications`).
 ### `status_history`
 
 Append-only. Write a new row every time `applications.status` changes — never update
-or delete rows here. This is what lets the dashboard compute things like average
-days-to-response later.
+or delete rows here.
 
 | Column | Type | Notes |
 |---|---|---|
@@ -275,11 +278,46 @@ days-to-response later.
 | `status` | text | same allowed values as `applications.status` |
 | `changed_at` | timestamptz | default `now()` |
 
-### `extraction_cache`
+### `interview_rounds` (v2)
 
-Optional but cheap to add. Keyed by a hash of the pasted JD text so re-pasting the
-same JD doesn't burn another Groq call. No `user_id` / RLS needed since it holds no
-personal data, just JD text hashes and extracted JSON.
+Per application, multiple interview rounds — one row per round.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid, pk | default `gen_random_uuid()` |
+| `application_id` | uuid, fk → `applications`, `ON DELETE CASCADE` | required |
+| `round_label` | text | e.g. "Phone Screen", "Technical", "On-site", "HR" |
+| `scheduled_date` | date | nullable |
+| `questions_asked` | text | nullable — freeform, what was asked during the round |
+| `notes` | text | nullable — post-interview notes on how it went |
+| `prep_notes` | text | nullable — prep notes before the interview |
+| `rating` | integer | nullable, 1–5 scale |
+| `created_at` | timestamptz | default `now()` |
+| `updated_at` | timestamptz | default `now()` |
+
+### `tags` (v2)
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid, pk | default `gen_random_uuid()` |
+| `user_id` | uuid, fk → `auth.users`, `ON DELETE CASCADE` | required |
+| `name` | text | required, unique per user |
+| `color` | text | hex color code e.g. `#6b7280`, default `#6b7280` |
+| `created_at` | timestamptz | default `now()` |
+| | | `UNIQUE(user_id, name)` |
+
+### `application_tags` (v2)
+
+Junction table linking applications to tags.
+
+| Column | Type | Notes |
+|---|---|---|
+| `application_id` | uuid, fk → `applications`, `ON DELETE CASCADE` | required, part of composite PK |
+| `tag_id` | uuid, fk → `tags`, `ON DELETE CASCADE` | required, part of composite PK |
+| `created_at` | timestamptz | default `now()` |
+| | | `PRIMARY KEY (application_id, tag_id)` |
+
+### `extraction_cache`
 
 | Column | Type | Notes |
 |---|---|---|
@@ -313,12 +351,16 @@ actions available directly on it, not buried in a separate menu or a future rele
 3. **Delete** — removes the application permanently. Always confirm before deleting
    (a modal or browser `confirm()` is enough for v1, doesn't need to be fancy) since
    this is destructive and there's no undo. Deleting an application should also
-   delete its associated `follow_ups` and `status_history` rows (cascade delete at
-   the DB level via `ON DELETE CASCADE` on the foreign keys is simpler than handling
-   it in application code). Deleting an application must NOT delete the linked
-   `resume_versions` row — a resume version can be reused across multiple
-   applications, so it should only be removed independently from a resume-management
-   screen, not as a side effect of deleting one application that happened to use it.
+   delete its associated `follow_ups`, `status_history`, `interview_rounds`, and
+   `application_tags` rows (cascade delete at the DB level via `ON DELETE CASCADE`
+   on the foreign keys is simpler than handling it in application code). Deleting an
+   application must NOT delete the linked `resume_versions` or `cover_letter_versions`
+   row — these can be reused across multiple applications, so they should only be
+   removed independently from their respective management screens.
+
+In v2, the detail view also shows: tags assigned to the application, interview
+rounds (with add/edit/delete), linked cover letter version, and salary/compensation
+details.
 
 ## 7. List view: status filter and search
 
@@ -331,7 +373,12 @@ these is fine) for the six values in section 5's status list (`applied`, `interv
 `offer`, `rejected`, `ghosted`, `withdrawn`), plus an "All" option that's the default
 view. Selecting a status shows only applications currently in that status. This reads
 from `applications.status`, not from `status_history` — history is for the audit
-trail and dashboard stats in build order step 6, not for what the list view filters by.
+trail and dashboard stats, not for what the list view filters by.
+
+In v2, a **tag filter** is also available alongside the status filter. It shows all
+tags the user has created, and selecting one filters to applications tagged with it.
+Tag filter and status filter combine (e.g. "remote" tag + "interview" status shows
+only remote-tagged applications in interview status).
 
 **Search bar** — a single text input that searches across `company_name` and
 `role_title` (and `key_requirements` if convenient, but those two fields are the
@@ -343,15 +390,7 @@ WHERE company_name ILIKE '%' || :query || '%'
    OR role_title ILIKE '%' || :query || '%'
 ```
 
-Don't reach for Postgres full-text search (`tsvector`/`to_tsvector`) or a separate
-search service for this — at the scale of one person's job applications (dozens to a
-few hundred rows), `ILIKE` against an indexed column is fast enough and has zero extra
-setup. Add a plain B-tree index on `company_name` and `role_title` if the list ever
-feels slow, but don't pre-optimize for this.
-
-Search and the status filter should combine (e.g. searching "razorpay" while the
-"interview" filter is active should only show interview-status Razorpay applications),
-not act as two separate, mutually exclusive views.
+In v2, search also covers `tags.name` via a join.
 
 ## 8. LLM extraction contract
 
@@ -380,7 +419,233 @@ Rules:
 - Hash the input JD text and check `extraction_cache` before calling Groq; write to
   the cache after a successful call.
 
-## 9. Build order
+## 9. Interview prep / question tracker (v2)
+
+### Purpose
+
+Per-application interview round tracking. When a user has an interview scheduled, they
+can add one or more "rounds" to the application (e.g. "Phone Screen", "Technical",
+"On-site", "HR"). Each round tracks: scheduled date, questions asked, post-interview
+notes, prep notes, and a rating (1–5).
+
+### Data
+
+Stored in `interview_rounds` table (see section 5). Each round belongs to exactly one
+application. Deleting an application cascades to its rounds.
+
+### UI placement
+
+Interview rounds appear as a new card section on the application detail page
+(`app/dashboard/applications/[id]/page.tsx`), alongside status history and follow-ups.
+Each round shows:
+- Round label + scheduled date
+- Prep notes (collapsible section)
+- Questions asked (collapsible section)
+- Post-interview notes
+- Rating as stars or number badge
+- Edit / delete actions
+
+A form at the bottom of the section allows adding a new round. Editing a round opens
+an inline form (same pattern as the follow-up edit UI).
+
+### Filtering / search
+
+Rounds do not appear in the dashboard list filter or search — they are detail-view-only.
+However, the dashboard stats could show "X upcoming interviews" based on
+`applications.status = 'interview'`.
+
+## 10. Offer comparison (v2)
+
+### Purpose
+
+When a user has multiple applications at "offer" status, they need a way to compare
+them side-by-side to make a decision. The offer comparison page shows all offer-status
+applications in a table comparing: company, role, location, salary_min, salary_max,
+equity, benefits, applied_date, and notes.
+
+### Data
+
+This feature primarily reads from `applications` where `status = 'offer'`. It uses
+the v2 salary/compensation columns (`salary_min`, `salary_max`, `equity`, `benefits`).
+
+### UI placement
+
+New page at `app/dashboard/offers/page.tsx`. Accessible from the navbar ("Offers" link).
+If the user has zero offers, show an empty state: "No offers yet — keep applying!"
+
+The page renders a table (using the existing shadcn `Table` component) with one row
+per offer application. Columns:
+- Company
+- Role
+- Location
+- Salary (formatted as `salary_min – salary_max` or just one if only one is set)
+- Equity
+- Benefits
+- Applied date
+- Link to detail page
+
+The table should be sortable by clicking column headers (client-side sort).
+
+### Integration
+
+A badge on the navbar "Offers" link shows the count of current offer-status applications
+(e.g. "Offers (3)").
+
+## 11. Tags / labels (v2)
+
+### Purpose
+
+Custom labels beyond the built-in status values. Users create tags like "remote",
+"startup", "FAANG", "backend" and assign them to applications. Tags are filterable
+on the dashboard alongside the status filter.
+
+### Data
+
+Two new tables: `tags` (id, user_id, name, color) and `application_tags` (application_id,
+tag_id composite PK). See section 5 for full schema.
+
+### UI — tag management
+
+A new page or section at `/dashboard/tags` (or as a modal from the dashboard) where
+users can create, edit, and delete tags. Each tag has a name and a color picker
+(hex input or a small set of preset colors).
+
+### UI — assigning tags
+
+On the application form (both create and edit), add a multi-select tag picker at the
+bottom. Show existing tags as checkboxes or as a combobox with create-on-the-fly.
+On the detail view, show assigned tags as colored badges at the top of the page.
+
+### UI — filtering
+
+On the dashboard list view, add a horizontal tag filter row below the status filter
+buttons. Each tag appears as a clickable pill/badge in its assigned color. Selecting
+one filters to applications that have that tag. Selecting multiple tags shows
+applications that have ALL selected tags (AND logic). A "Clear filters" link resets
+all tag selections.
+
+Tags and status filter combine: e.g. tag "remote" + status "interview" shows only
+remote-tagged applications in interview status.
+
+## 12. Dashboard charts (v2)
+
+### Purpose
+
+Visualize the user's job search progress with two charts:
+1. **Funnel chart** — shows the pipeline breakdown from applied → interview → offer
+2. **Timeline chart** — shows applications over time (by month or week)
+
+### Implementation
+
+Use Recharts (added to tech stack). Both charts render on the dashboard page below
+the stats bar and above the application list.
+
+**Funnel chart:** A horizontal bar chart or funnel SVG showing counts at each status
+(applied → interview → offer → rejected/ghosted/withdrawn). Clicking a bar could
+filter the list below to that status.
+
+**Timeline chart:** An area or bar chart with months on the x-axis and count of
+applications on the y-axis, colored by status stack. Derived from `applied_date`
+column.
+
+### Data source
+
+All data is already in the `applications` table — no new queries or tables needed.
+Compute on the client from the existing `useApplications()` hook data.
+
+### Empty state
+
+If the user has fewer than 3 applications, show a simplified message instead of
+empty chart axes: "Add a few applications to see your search trends."
+
+## 13. Follow-up email templates (v2)
+
+### Purpose
+
+When creating a follow-up reminder, the user can select from a set of pre-written
+email templates rather than writing the note from scratch. The template content is
+inserted into the note field, with template variables like `{{company}}`, `{{role}}`
+that get replaced with the application's actual values.
+
+### Data
+
+Templates are defined as constants in `lib/follow-up-templates.ts` — not stored in
+the database in v2. Each template has:
+- `id` (string key)
+- `name` (display name, e.g. "Gentle reminder")
+- `body` (template text with `{{company}}` and `{{role}}` variables)
+
+Pre-defined templates:
+1. **Gentle reminder** — "Hi [hiring manager], I'm writing to follow up on my
+   application for {{role}} at {{company}}..."
+2. **Post-interview thank-you** — "Thank you for taking the time to interview me
+   for {{role}} at {{company}}..."
+3. **Status check** — "I wanted to check in on the status of my application for
+   {{role}} at {{company}}..."
+4. **Custom** — blank textarea
+
+### UI integration
+
+On the follow-up form (`follow-up-form.tsx`), add a dropdown/select labeled
+"Template" above the note textarea. Selecting a template populates the note field
+with the rendered text (variables replaced). The user can then edit the text before
+saving. The template selection does not auto-save — it's just a convenience to
+pre-fill the note.
+
+### Cron integration
+
+No changes to the cron route — it already reads `follow_ups.note` and sends it
+as the email body via Resend.
+
+## 14. Cover letter tracking (v2)
+
+### Purpose
+
+Same pattern as resume versions, but for cover letters. Users can:
+- Store cover letter versions (text content, optionally uploaded as PDF)
+- Generate a first draft via Groq (LLM-assisted)
+- Link a cover letter version to an application
+- Download or view the cover letter from the application detail page
+
+### Data
+
+New table `cover_letter_versions` (see section 5). New column
+`cover_letter_version_id` on `applications` (nullable FK, `ON DELETE SET NULL`).
+
+### LLM generation
+
+New API route at `app/api/generate-cover-letter/route.ts` — POST endpoint that
+accepts `{ company_name, role_title, job_description_raw }` and calls Groq with a
+prompt asking it to write a professional cover letter. Returns `{ cover_letter: string }`.
+The prompt instructs the model to keep it concise (3–4 paragraphs), professional,
+and tailored to the company/role.
+
+### UI — manage cover letters
+
+A new tab/section on the existing `/dashboard/resumes` page is renamed to
+"Documents" with sub-sections for "Resumes" and "Cover Letters". The cover letter
+section mirrors the resume upload form: upload a PDF or paste/edit text content,
+give it a label, and save.
+
+Alternatively, a simpler approach for v2: add a cover letter section on the resume
+management page.
+
+### UI — application form
+
+The application create/edit form gets a new dropdown "Cover letter version" next to
+the existing "Resume version" dropdown, listing available cover letter versions.
+A "Generate draft" button next to the dropdown calls the LLM generation endpoint
+with the current form values and creates a new cover letter version, then selects it.
+
+### UI — detail view
+
+On the application detail page, show the linked cover letter version (if any) in
+the Details card. Show "View cover letter" button that opens the content in a
+dialog/modal, and a "Download" button if a PDF file_url exists.
+
+## 15. Build order
+
+### v1 build order
 
 Each step should end in something clickable, not just scaffolding.
 
@@ -400,10 +665,28 @@ Each step should end in something clickable, not just scaffolding.
 6. **Polish** — CSV export, dashboard stats (response rate, ghosted %, average
    days-to-response computed from `status_history`).
 
-Don't jump ahead to step 4 or 5 before steps 2-3 produce a working app — each step
-should be deployable on its own.
+### v2 build order
 
-## 10. Git workflow
+1. **Schema migration** — add new columns to `applications` (salary/compensation,
+   cover_letter_version_id), create new tables (`cover_letter_versions`,
+   `interview_rounds`, `tags`, `application_tags`), update RLS policies, create
+   Supabase Storage bucket for cover letter PDFs.
+2. **Salary / compensation + offer comparison** — add salary/equity/benefits fields
+   to the application create/edit form and detail view; build the `/dashboard/offers`
+   comparison page; add "Offers" link to navbar with count badge.
+3. **Tags / labels** — build tag CRUD page, tag picker on application form, tag
+   badges on detail view, tag filter on dashboard alongside status filter.
+4. **Interview prep / question tracker** — build interview round CRUD UI on the
+   application detail page (add/edit/delete rounds).
+5. **Dashboard charts** — add Recharts funnel and timeline charts to the dashboard.
+6. **Follow-up email templates** — add template selector to the follow-up form;
+   define templates in `lib/follow-up-templates.ts`.
+7. **Cover letter tracking** — build `cover_letter_versions` CRUD, LLM generation
+   endpoint, dropdown on application form, cover letter display on detail view.
+8. **Polish** — update CSV export to include new columns, add tag column to export,
+   update search to include tags.
+
+## 16. Git workflow
 
 This is a solo project, but follow real conventions rather than committing straight
 to `main` — it produces a better commit history for a portfolio repo and catches
@@ -437,7 +720,7 @@ mistakes before they hit the deployed app.
   does. If a feature spans multiple sessions and isn't done, just keep it on its
   branch until it is, rather than merging incomplete work behind a flag.
 
-## 11. Open questions / decisions log
+## 17. Open questions / decisions log
 
 Use this section for two things: decisions made mid-build so future sessions don't
 re-litigate them, and a running log of features added after this file's initial
@@ -457,3 +740,17 @@ straight to code:
 
 - (example) Decided to use Supabase Storage over a separate file host because Auth
   and DB are already on Supabase — one fewer service to configure.
+- (v2) Added Recharts for dashboard charts — lightweight, React-native, no heavy
+  dependencies, and already widely used in the Next.js ecosystem.
+- (v2) Email templates defined as code constants rather than a DB table — simpler
+  for v2, can be migrated to a template table later if users want custom templates.
+- (v2) Cover letter generation uses the same Groq API (Llama 3.1 8B) already used
+  for JD extraction — no new service needed.
+- (v2) Tags use a dedicated junction table (`application_tags`) rather than a jsonb
+  array on `applications` — proper referential integrity, color support, and easier
+  filtering via SQL joins.
+- (v2) Interview rounds stored as separate rows rather than a jsonb array on
+  `applications` — supports future features like calendar integration and per-round
+  follow-ups.
+- (v2) Offer comparison page is read-only (no editing) in v2 — editing happens on
+  the individual application edit page; the comparison page just views.

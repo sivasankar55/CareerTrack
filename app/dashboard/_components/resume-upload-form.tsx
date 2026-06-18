@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Upload, X } from "lucide-react";
+import { Upload, X, Download } from "lucide-react";
 import type { ResumeVersion } from "@/types/application";
 
 type ResumeUploadFormProps = {
@@ -86,6 +86,18 @@ export function ResumeUploadForm({ onUploaded }: ResumeUploadFormProps) {
     onUploaded();
   }
 
+  async function handleDownload(filePath: string) {
+    const { data } = await supabase.storage
+      .from("resumes")
+      .createSignedUrl(filePath, 60);
+
+    if (data?.signedUrl) {
+      window.open(data.signedUrl, "_blank");
+    } else {
+      toast.error("Couldn't generate download link.");
+    }
+  }
+
   async function handleDelete(id: string) {
     const confirmed = window.confirm("Delete this resume version?");
     if (!confirmed) return;
@@ -149,14 +161,24 @@ export function ResumeUploadForm({ onUploaded }: ResumeUploadFormProps) {
                   </p>
                 )}
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={() => handleDelete(v.id)}
-              >
-                <X className="h-3.5 w-3.5" />
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => handleDownload(v.file_url)}
+                >
+                  <Download className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => handleDelete(v.id)}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             </div>
           ))}
         </div>

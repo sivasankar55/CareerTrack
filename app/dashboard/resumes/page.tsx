@@ -1,6 +1,8 @@
 "use client";
 
+import { useState, useCallback } from "react";
 import { ResumeUploadForm } from "../_components/resume-upload-form";
+import { CoverLetterForm } from "../_components/cover-letter-form";
 import {
   Card,
   CardContent,
@@ -8,27 +10,43 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-export default function ResumesPage() {
+export default function DocumentsPage() {
+  const [resumeKey, setResumeKey] = useState(0);
+  const handleUploaded = useCallback(() => {
+    setResumeKey((k) => k + 1);
+  }, []);
+
   return (
     <div className="mx-auto max-w-lg space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Resume versions</h1>
+        <h1 className="text-2xl font-bold">Documents</h1>
         <p className="text-muted-foreground">
-          Upload and manage your resume PDFs to attach to applications.
+          Upload and manage your resumes and cover letters.
         </p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Upload a resume</CardTitle>
+          <CardTitle>Documents</CardTitle>
           <CardDescription>
-            Upload a PDF and give it a label so you can identify which version
-            you sent to each application.
+            Manage your resume PDFs and cover letter versions.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ResumeUploadForm onUploaded={() => {}} />
+          <Tabs defaultValue="resumes">
+            <TabsList className="mb-4">
+              <TabsTrigger value="resumes">Resumes</TabsTrigger>
+              <TabsTrigger value="cover-letters">Cover letters</TabsTrigger>
+            </TabsList>
+            <TabsContent value="resumes">
+              <ResumeUploadForm key={resumeKey} onUploaded={handleUploaded} />
+            </TabsContent>
+            <TabsContent value="cover-letters">
+              <CoverLetterForm />
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
     </div>

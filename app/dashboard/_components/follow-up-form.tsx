@@ -6,19 +6,44 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
+import { FOLLOW_UP_TEMPLATES, renderTemplate } from "@/lib/follow-up-templates";
+import type { FollowUpTemplate } from "@/lib/follow-up-templates";
 
 type FollowUpFormProps = {
   applicationId: string;
   onCreated: () => void;
+  companyName?: string;
+  roleTitle?: string;
 };
 
-export function FollowUpForm({ applicationId, onCreated }: FollowUpFormProps) {
+export function FollowUpForm({ applicationId, onCreated, companyName, roleTitle }: FollowUpFormProps) {
   const [dueDate, setDueDate] = useState("");
   const [note, setNote] = useState("");
+  const [selectedTemplate, setSelectedTemplate] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const supabase = createClient();
+
+  function handleTemplateSelect(templateId: string | null) {
+    if (!templateId) return;
+    setSelectedTemplate(templateId);
+    if (templateId === "custom") {
+      setNote("");
+      return;
+    }
+    const template = FOLLOW_UP_TEMPLATES.find((t) => t.id === templateId);
+    if (template) {
+      setNote(renderTemplate(template, companyName ?? "the company", roleTitle ?? "the role"));
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -40,6 +65,7 @@ export function FollowUpForm({ applicationId, onCreated }: FollowUpFormProps) {
     toast.success("Follow-up added.");
     setDueDate("");
     setNote("");
+    setSelectedTemplate("");
     setIsSubmitting(false);
     onCreated();
   }
@@ -59,7 +85,22 @@ export function FollowUpForm({ applicationId, onCreated }: FollowUpFormProps) {
         </div>
       </div>
       <div className="space-y-1">
-        <Label htmlFor="fu_note">Note (optional)</Label>
+        <Label htmlFor="fu_template">Template (optional)</Label>
+        <Select value={selectedTemplate} onValueChange={handleTemplateSelect}>
+          <SelectTrigger id="fu_template">
+            <SelectValue placeholder="Select a template..." />
+          </SelectTrigger>
+          <SelectContent>
+            {FOLLOW_UP_TEMPLATES.map((t) => (
+              <SelectItem key={t.id} value={t.id}>
+                {t.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-1">
+        <Label htmlFor="fu_note">Note</Label>
         <Textarea
           id="fu_note"
           placeholder="What to follow up about..."
